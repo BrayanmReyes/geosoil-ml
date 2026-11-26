@@ -1,5 +1,5 @@
 import {classify} from './engine.mjs';
-export function generate(seed=2026,count=560){
+export function generate(seed=2026,count=2800){
  if(!Number.isInteger(seed)||!Number.isInteger(count)||count<1||count>5000)throw Error('Semilla entera y 1–5000 muestras');
  let state=seed>>>0;const rand=()=>{state=(Math.imul(1664525,state)+1013904223)>>>0;return state/4294967296}, u=(a,b)=>a+(b-a)*rand(), round=(x,n=2)=>Number(x.toFixed(n));
  const projects=[],explorations=[],samples=[],tests=[],points=[];const types=['grava limpia','arena limpia','arena limosa','arena arcillosa','limo','arcilla baja plasticidad','arcilla alta plasticidad'];
@@ -13,8 +13,8 @@ export function generate(seed=2026,count=560){
  const x={p4,p10,p40,p200:fine,ll,lp,np,d10,d30,d60};const label=classify(x);
  const phi=round(u(t<2?32:t<4?27:20,t<2?40:t<4?35:30)),c=round(t<2?0:u(t===2||t===4?0:5,t===2||t===4?8:25));
  const specimen=id+'-CD';samples.push({id,project_id:pid,exploration_id:eid,depth_from_m:k,depth_to_m:k+.8,origin:'synthetic',family:types[t],...x,gravel,sand,fines:fine,gs,void_ratio:e,saturation_pct:sr*100,moisture_pct:w,dry_density_g_cm3:rho_d,natural_density_g_cm3:rho_d*(1+w/100),sucs:label.sucs,aashto:label.aashto,gi:label.gi});
- const ys=[50,100,150].map(s=>({normal_kpa:s,shear_kpa:round(c+s*Math.tan(phi*Math.PI/180)+u(-.3,.3))}));const slope=(ys[2].shear_kpa-ys[0].shear_kpa)/100, intercept=ys.reduce((a,b)=>a+b.shear_kpa,0)/3-100*slope;
- tests.push({id:specimen,sample_id:id,origin:'synthetic',type:'corte directo simulado',drainage:'drenado',stress:'efectivo',phi_deg:round(Math.atan(slope)*180/Math.PI),c_kpa:round(intercept),eligible_for_regression:intercept>=0,review_required:intercept<0,nominal_phi_deg:phi,nominal_c_kpa:c});ys.forEach((v,n)=>points.push({id:specimen+'-'+(n+1),test_id:specimen,...v}));
- }return {schema_version:1,generator_version:'2.2.1',seed,origin:'synthetic',projects,explorations,samples,tests,points};
+ const ys=[50,100,150].map(s=>({normal_kpa:s,shear_kpa:round(c+s*Math.tan(phi*Math.PI/180)+u(-.3,.3))}));const rawSlope=(ys[2].shear_kpa-ys[0].shear_kpa)/100, rawIntercept=ys.reduce((a,b)=>a+b.shear_kpa,0)/3-100*rawSlope;const intercept=Math.max(0,rawIntercept),slope=rawIntercept<0?ys.reduce((a,b)=>a+b.normal_kpa*b.shear_kpa,0)/35000:rawSlope;
+ tests.push({id:specimen,sample_id:id,origin:'synthetic',type:'corte directo simulado',drainage:'drenado',stress:'efectivo',phi_deg:round(Math.atan(slope)*180/Math.PI),c_kpa:round(intercept),raw_intercept_kpa:round(rawIntercept),fit_constrained:rawIntercept<0,eligible_for_regression:true,review_required:false,nominal_phi_deg:phi,nominal_c_kpa:c});ys.forEach((v,n)=>points.push({id:specimen+'-'+(n+1),test_id:specimen,...v}));
+ }return {schema_version:1,generator_version:'2.3.0',seed,origin:'synthetic',projects,explorations,samples,tests,points};
 }
 export function audit(d){const p=new Set(d.projects.map(x=>x.id)),e=new Map(d.explorations.map(x=>[x.id,x.project_id])),s=new Set(d.samples.map(x=>x.id)),t=new Set(d.tests.map(x=>x.id));return {samples:d.samples.length,invalid:d.samples.filter(x=>!p.has(x.project_id)||e.get(x.exploration_id)!==x.project_id||Math.abs(x.gravel+x.sand+x.fines-100)>.011||x.saturation_pct>100||x.saturation_pct<0||x.depth_to_m>4).length,orphan_tests:d.tests.filter(x=>!s.has(x.sample_id)).length,orphan_points:d.points.filter(x=>!t.has(x.test_id)).length}}
